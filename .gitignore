@@ -1,0 +1,13 @@
+.zip
+.rar
+.7z
+
+.vscode
+
+data
+output
+
+__pycache__
+geo_matcher.egg-info
+
+config.yaml
