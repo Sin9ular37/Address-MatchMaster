@@ -1,0 +1,51 @@
+# 输入输出路径
+poi_file: "data/poi.xlsx"
+poi_sheet: "Sheet1"
+address_file: "data/addresses.xlsx"
+address_sheet: "Sheet1"
+output_file: "output/matched_addresses.xlsx"
+
+# 字段映射
+columns:
+  poi:
+    name: "poi_name"
+    province: "province"
+    city: "city"
+    district: "district"
+    street: "street"
+    house_number: "house_no"
+    latitude: "lat"
+    longitude: "lng"
+    poi_id: "id"
+    poi_type: "type"
+  address:
+    raw_address: "raw"
+    province: "province"
+    city: "city"
+    district: "district"
+    street: "street"
+    house_number: "house_no"
+    order_id: "order_id"
+
+# 召回与得分
+retriever:
+  max_candidates: 10
+  enable_vector: false
+  vector_model: "shibing624/text2vec-base-chinese"
+scoring:
+  coverage_weight: 0.5
+  edit_distance_weight: 0.3
+  doorplate_weight: 0.2
+  min_score: 0.75
+
+# 兜底高德API
+gaode:
+  enable: false
+  key: ""
+  rate_limit_per_sec: 5
+
+# 并发与日志
+runtime:
+  workers: 4
+  chunk_size: 2000
+  log_level: "INFO"

@@ -1,0 +1,21 @@
+如果希望环境稳定，最好在 conda install 时指定版本或至少限定主版本。例如：
+
+conda install pandas=2.2 openpyxl=3.1
+conda install pydantic=2.8
+conda install -c conda-forge rapidfuzz=3.9
+conda install jieba=0.42
+conda install -c conda-forge pypinyin=0.49
+conda install typer=0.12
+conda install pyyaml=6.0
+conda install loguru=0.7
+conda install tqdm=4.66
+
+"这对应 pyproject.toml 中的最低版本要求，能保证功能一致。
+最后仍需 pip install -e . --no-deps 把本地代码注册到环境里。
+若未来需要升级，可在 conda 安装时调整版本号；
+也可以把这些命令写进 environment.yml 方便团队统一。"
+
+conda-forge：
+conda install -c conda-forge jieba=0.42
+conda install -c conda-forge typer=0.12
+  
