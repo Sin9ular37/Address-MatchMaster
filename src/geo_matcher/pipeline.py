@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
-from typing import Iterable, List, Sequence
+from pathlib import Path
+from typing import Optional, Sequence
 
 import pandas as pd
 from loguru import logger
@@ -33,7 +34,7 @@ class GeoMatchingPipeline:
     def load(self) -> None:
         self.pois = self._load_pois()
         self.addresses = self._load_addresses()
-        logger.info("加载POI {count} 条, 地址 {addr_count} 条", count=len(self.pois), addr_count=len(self.addresses))
+        logger.info("加载POI {count} 条，地址 {addr_count} 条", count=len(self.pois), addr_count=len(self.addresses))
         index = InvertedIndex()
         index.build(self.pois)
         self.retrievers = [InvertedRetriever(index)]
@@ -61,14 +62,14 @@ class GeoMatchingPipeline:
         logger.info("结果写入 {path}", path=self.config.output_file)
 
     def _load_pois(self) -> list[POIRecord]:
-        df = pd.read_excel(self.config.poi_file, sheet_name=self.config.poi_sheet)
+        df = self._read_table(self.config.poi_file, sheet_name=self.config.poi_sheet)
         mapper = self.config.columns.poi
         df = df.rename(columns={v: k for k, v in mapper.items() if v in df.columns})
-        pois = []
+        pois: list[POIRecord] = []
         for row in df.to_dict(orient="records"):
             poi = POIRecord(
-                poi_id=str(row.get("poi_id")),
-                name=str(row.get("name")),
+                poi_id=str(row.get("poi_id") or ""),
+                name=str(row.get("name") or ""),
                 province=row.get("province", "") or "",
                 city=row.get("city", "") or "",
                 district=row.get("district", "") or "",
@@ -78,20 +79,22 @@ class GeoMatchingPipeline:
                 longitude=float(row.get("longitude")),
                 poi_type=row.get("poi_type"),
             )
-            normalized = self.normalizer.normalize("".join([poi.province, poi.city, poi.district, poi.street, poi.name, poi.house_number]))
+            normalized = self.normalizer.normalize(
+                "".join([poi.province, poi.city, poi.district, poi.street, poi.name, poi.house_number])
+            )
             poi.normalized = " ".join(normalized.tokens)
             pois.append(poi)
         return pois
 
     def _load_addresses(self) -> list[AddressRecord]:
-        df = pd.read_excel(self.config.address_file, sheet_name=self.config.address_sheet)
+        df = self._read_table(self.config.address_file, sheet_name=self.config.address_sheet)
         mapper = self.config.columns.address
         df = df.rename(columns={v: k for k, v in mapper.items() if v in df.columns})
-        addresses = []
-        for row in df.to_dict(orient="records"):
+        addresses: list[AddressRecord] = []
+        for idx, row in enumerate(df.to_dict(orient="records"), start=1):
             addr = AddressRecord(
-                order_id=str(row.get("order_id")),
-                raw_address=str(row.get("raw_address")),
+                order_id=self._ensure_order_id(row.get("order_id"), idx),
+                raw_address=str(row.get("raw_address") or ""),
                 province=row.get("province", "") or "",
                 city=row.get("city", "") or "",
                 district=row.get("district", "") or "",
@@ -119,3 +122,21 @@ class GeoMatchingPipeline:
             candidates=unique_candidates,
             min_score=self.config.scoring.min_score,
         )
+
+    def _read_table(self, path: Path, sheet_name: Optional[str] = None) -> pd.DataFrame:
+        ext = path.suffix.lower()
+        if ext in {".csv", ".txt"}:
+            return pd.read_csv(path, encoding="utf-8-sig")
+        kwargs = {}
+        if sheet_name is not None:
+            kwargs["sheet_name"] = sheet_name
+        return pd.read_excel(path, **kwargs)
+
+    def _ensure_order_id(self, raw_value: object, index: int) -> str:
+        if isinstance(raw_value, str):
+            candidate = raw_value.strip()
+            if candidate:
+                return candidate
+        elif raw_value is not None and not pd.isna(raw_value):
+            return str(raw_value)
+        return f"ROW_{index}"
