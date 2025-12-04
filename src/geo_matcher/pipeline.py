@@ -57,7 +57,18 @@ class GeoMatchingPipeline:
         return results
 
     def export(self, results: Sequence[MatchResult]) -> None:
-        df = pd.DataFrame([result.model_dump() for result in results])
+        merged_rows: list[dict] = []
+        for result in results:
+            payload = result.model_dump()
+            original = payload.pop("original_row", {})
+            combined = dict(payload)
+            for key, value in original.items():
+                if key in combined:
+                    combined[f"original_{key}"] = value
+                else:
+                    combined[key] = value
+            merged_rows.append(combined)
+        df = pd.DataFrame(merged_rows)
         df.to_excel(self.config.output_file, index=False)
         logger.info("结果写入 {path}", path=self.config.output_file)
 
@@ -87,11 +98,13 @@ class GeoMatchingPipeline:
         return pois
 
     def _load_addresses(self) -> list[AddressRecord]:
-        df = self._read_table(self.config.address_file, sheet_name=self.config.address_sheet)
+        raw_df = self._read_table(self.config.address_file, sheet_name=self.config.address_sheet)
         mapper = self.config.columns.address
-        df = df.rename(columns={v: k for k, v in mapper.items() if v in df.columns})
+        df = raw_df.rename(columns={v: k for k, v in mapper.items() if v in raw_df.columns})
         addresses: list[AddressRecord] = []
-        for idx, row in enumerate(df.to_dict(orient="records"), start=1):
+        raw_records = raw_df.to_dict(orient="records")
+        std_records = df.to_dict(orient="records")
+        for idx, (raw_row, row) in enumerate(zip(raw_records, std_records), start=1):
             addr = AddressRecord(
                 order_id=self._ensure_order_id(row.get("order_id"), idx),
                 raw_address=str(row.get("raw_address") or ""),
@@ -100,6 +113,7 @@ class GeoMatchingPipeline:
                 district=row.get("district", "") or "",
                 street=row.get("street", "") or "",
                 house_number=str(row.get("house_number") or ""),
+                original_row=raw_row,
             )
             addresses.append(addr)
         return addresses

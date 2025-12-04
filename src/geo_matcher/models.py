@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,7 @@ class AddressRecord(BaseModel):
     street: str = ""
     house_number: str = ""
     normalized: Optional[str] = None
+    original_row: dict[str, Any] = Field(default_factory=dict)
 
 
 class MatchResult(BaseModel):
@@ -40,3 +41,4 @@ class MatchResult(BaseModel):
     score: float = 0.0
     source: str = "RULE"
     candidates: list[dict] = Field(default_factory=list)
+    original_row: dict[str, Any] = Field(default_factory=dict)

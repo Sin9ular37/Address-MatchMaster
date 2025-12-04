@@ -65,8 +65,15 @@ class CandidateScorer:
                 score=best_score,
                 source="RULE",
                 candidates=candidate_cache,
+                original_row=address.original_row,
             )
-        return MatchResult(order_id=address.order_id, raw_address=address.raw_address, score=best_score, candidates=candidate_cache)
+        return MatchResult(
+            order_id=address.order_id,
+            raw_address=address.raw_address,
+            score=best_score,
+            candidates=candidate_cache,
+            original_row=address.original_row,
+        )
 
     def _token_coverage(self, addr_tokens: List[str], poi_tokens: List[str]) -> float:
         if not addr_tokens:
