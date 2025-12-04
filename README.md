@@ -63,6 +63,36 @@ Excel 读入 → 地址清洗/分词 → 构建倒排索引 → 候选召回 →
 | `src/geo_matcher/pipeline.py` | 主数据流：加载→召回→得分→导出 |
 | `src/geo_matcher/cli.py` | 命令行入口 `geo-matcher config.yaml` |
 
+## 输入数据示例
+
+当前 `config.yaml` 约定：POI 数据为 UTF-8 CSV，字段以空格仅为演示，实际文件中为英文逗号分隔，包含以下列（表头需与示例一致）：
+
+| 列名 | 含义 |
+| --- | --- |
+| `id` | POI 唯一编码，对应 `columns.poi.poi_id` |
+| `name` | POI 名称 |
+| `type`/`typecode`/`bigType`/`midType`/`smallType` | 分类信息，默认只读取 `type` |
+| `address` | 详细地址（街道、门牌号） |
+| `pcode`/`pname`/`citycode`/`cityname`/`adcode`/`adname` | 省市区编码+名称 |
+| `lon_gcj02` `lat_gcj02` `lon_wgs84` `lat_wgs84` | 坐标，可任选一组与 `columns.poi.longitude/latitude` 对齐 |
+
+```
+B01C30J4ZG 奔马汽配城 汽车服务;汽车配件销售;汽车配件销售 10800 宣化街477号 0451-82526666 230000 黑龙江省 451 哈尔滨市 230103 南岗区 汽车服务 汽车配件销售 汽车配件销售 126.668667 45.768254 126.6626423 45.76626984
+```
+
+快递地址数据来自 Excel（示例 sheet：`kx_jtu`），需包含以下列：
+
+| 列名 | 含义 |
+| --- | --- |
+| `receive_province_name` | 收件省份 |
+| `receive_city_name` | 收件城市 |
+| `receive_district_name` | 收件区县 |
+| `receive_mailing_address` | 详细地址（街道+门牌+店名等），同时映射到 `raw_address` 与 `street` |
+
+```
+黑龙江省 哈尔滨市 道里区 西四道街33号你好酒店(哈尔滨中央大街店)
+```
+
 ## 常见问题
 
 - **`FileNotFoundError: data\poi.xlsx`**：检查 `config.yaml` 中的路径是否真实存在，必要时使用绝对路径。
