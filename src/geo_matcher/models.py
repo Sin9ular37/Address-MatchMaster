@@ -17,6 +17,7 @@ class POIRecord(BaseModel):
     longitude: float
     poi_type: Optional[str] = None
     normalized: Optional[str] = None
+    address_raw: str = ""
 
 
 class AddressRecord(BaseModel):
@@ -36,6 +37,7 @@ class MatchResult(BaseModel):
     raw_address: str
     matched_poi_id: Optional[str] = None
     matched_poi_name: Optional[str] = None
+    matched_poi_address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     score: float = 0.0

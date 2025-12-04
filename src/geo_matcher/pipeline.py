@@ -3,7 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 import pandas as pd
 from loguru import logger
@@ -73,9 +73,9 @@ class GeoMatchingPipeline:
         logger.info("结果写入 {path}", path=self.config.output_file)
 
     def _load_pois(self) -> list[POIRecord]:
-        df = self._read_table(self.config.poi_file, sheet_name=self.config.poi_sheet)
+        raw_df = self._read_table(self.config.poi_file, sheet_name=self.config.poi_sheet)
         mapper = self.config.columns.poi
-        df = df.rename(columns={v: k for k, v in mapper.items() if v in df.columns})
+        df = self._select_columns(raw_df, mapper)
         pois: list[POIRecord] = []
         for row in df.to_dict(orient="records"):
             poi = POIRecord(
@@ -89,6 +89,7 @@ class GeoMatchingPipeline:
                 latitude=float(row.get("latitude")),
                 longitude=float(row.get("longitude")),
                 poi_type=row.get("poi_type"),
+                address_raw=str(row.get("street") or ""),
             )
             normalized = self.normalizer.normalize(
                 "".join([poi.province, poi.city, poi.district, poi.street, poi.name, poi.house_number])
@@ -100,7 +101,7 @@ class GeoMatchingPipeline:
     def _load_addresses(self) -> list[AddressRecord]:
         raw_df = self._read_table(self.config.address_file, sheet_name=self.config.address_sheet)
         mapper = self.config.columns.address
-        df = raw_df.rename(columns={v: k for k, v in mapper.items() if v in raw_df.columns})
+        df = self._select_columns(raw_df, mapper)
         addresses: list[AddressRecord] = []
         raw_records = raw_df.to_dict(orient="records")
         std_records = df.to_dict(orient="records")
@@ -145,6 +146,15 @@ class GeoMatchingPipeline:
         if sheet_name is not None:
             kwargs["sheet_name"] = sheet_name
         return pd.read_excel(path, **kwargs)
+
+    def _select_columns(self, df: pd.DataFrame, mapping: Mapping[str, str]) -> pd.DataFrame:
+        data: dict[str, pd.Series] = {}
+        for logical, source in mapping.items():
+            if source in df.columns:
+                data[logical] = df[source]
+        if not data:
+            return pd.DataFrame(index=df.index).copy()
+        return pd.DataFrame(data)
 
     def _ensure_order_id(self, raw_value: object, index: int) -> str:
         if isinstance(raw_value, str):

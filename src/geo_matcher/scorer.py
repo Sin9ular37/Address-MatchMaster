@@ -60,6 +60,7 @@ class CandidateScorer:
                 raw_address=address.raw_address,
                 matched_poi_id=best_poi.poi_id,
                 matched_poi_name=best_poi.name,
+                matched_poi_address=best_poi.address_raw,
                 latitude=best_poi.latitude,
                 longitude=best_poi.longitude,
                 score=best_score,
