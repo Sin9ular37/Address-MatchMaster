@@ -30,3 +30,4 @@ vector = [
 
 [project.scripts]
 geo-matcher = "geo_matcher.cli:main"
+geo-clean = "geo_matcher.clean_cli:main"
