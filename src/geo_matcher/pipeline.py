@@ -60,6 +60,7 @@ class GeoMatchingPipeline:
         merged_rows: list[dict] = []
         for result in results:
             payload = result.model_dump()
+            payload.pop("order_id", None)  # 输入无运单号时，不在导出结果中强加行号
             original = payload.pop("original_row", {})
             combined = dict(payload)
             for key, value in original.items():
@@ -108,12 +109,12 @@ class GeoMatchingPipeline:
         for idx, (raw_row, row) in enumerate(zip(raw_records, std_records), start=1):
             addr = AddressRecord(
                 order_id=self._ensure_order_id(row.get("order_id"), idx),
-                raw_address=str(row.get("raw_address") or ""),
-                province=row.get("province", "") or "",
-                city=row.get("city", "") or "",
-                district=row.get("district", "") or "",
-                street=row.get("street", "") or "",
-                house_number=str(row.get("house_number") or ""),
+                raw_address=self._coerce_str(row.get("raw_address")),
+                province=self._coerce_str(row.get("province")),
+                city=self._coerce_str(row.get("city")),
+                district=self._coerce_str(row.get("district")),
+                street=self._coerce_str(row.get("street")),
+                house_number=self._coerce_str(row.get("house_number")),
                 original_row=raw_row,
             )
             addresses.append(addr)
@@ -164,3 +165,16 @@ class GeoMatchingPipeline:
         elif raw_value is not None and not pd.isna(raw_value):
             return str(raw_value)
         return f"ROW_{index}"
+
+    def _coerce_str(self, value: object, default: str = "") -> str:
+        if isinstance(value, str):
+            return value
+        if value is None:
+            return default
+        try:
+            import pandas as pd
+            if pd.isna(value):
+                return default
+        except Exception:
+            pass
+        return str(value)

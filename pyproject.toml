@@ -19,7 +19,8 @@ dependencies = [
     "typer>=0.12",
     "pyyaml>=6.0.1",
     "loguru>=0.7",
-    "tqdm>=4.66"
+    "tqdm>=4.66",
+    "lac>=2.1"
 ]
 
 [project.optional-dependencies]
@@ -31,3 +32,4 @@ vector = [
 [project.scripts]
 geo-matcher = "geo_matcher.cli:main"
 geo-clean = "geo_matcher.clean_cli:main"
+geo-validate = "geo_matcher.validate_cli:main"

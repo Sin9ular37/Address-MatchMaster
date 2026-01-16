@@ -26,6 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="地址",
         help="需要清洗的列名，默认“地址”",
     )
+    parser.add_argument(
+        "--no-lac",
+        action="store_true",
+        help="禁用 LAC 分词/NER（默认开启，可提升拆分准确率）",
+    )
     return parser
 
 
@@ -40,7 +45,8 @@ def main() -> None:
         output_path = args.output
     else:
         output_path = input_path.with_name(f"{input_path.stem}_clean.xlsx")
-    cleaner = AddressCleaner()
+    enable_lac = not args.no_lac
+    cleaner = AddressCleaner(enable_lac=enable_lac)
     logger.info("读取 {}", input_path)
     cleaner.process_file(input_path, output_path, args.column)
     logger.info("清洗完成，结果已写入 {}", output_path)

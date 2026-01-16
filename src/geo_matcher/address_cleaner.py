@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional, Sequence
 
 import pandas as pd
 
@@ -92,7 +92,43 @@ class ParsedAddress:
         }
 
 
+class LACAnalyzer:
+    """轻量封装 LAC，避免核心逻辑散落。"""
+
+    def __init__(self) -> None:
+        try:
+            from LAC import LAC as LACClient  # type: ignore
+        except Exception as exc:  # pragma: no cover - 依赖缺失时抛出
+            raise ImportError("请先安装 LAC：pip install LAC") from exc
+        self.client = LACClient(mode="lac")
+
+    def tag(self, text: str) -> list[tuple[str, str]]:
+        result = self.client.run(text)
+        tokens: list[str] = []
+        tags: list[str] = []
+        if (
+            isinstance(result, (list, tuple))
+            and len(result) == 2
+            and isinstance(result[0], (list, tuple))
+            and isinstance(result[1], (list, tuple))
+        ):
+            tokens, tags = list(result[0]), list(result[1])
+        elif isinstance(result, list) and all(isinstance(item, str) for item in result):
+            tokens = list(result)
+            tags = [""] * len(tokens)
+        return [(tok, tags[idx] if idx < len(tags) else "") for idx, tok in enumerate(tokens)]
+
+
 class AddressParser:
+    def __init__(self, enable_lac: bool = True, lac_analyzer: LACAnalyzer | None = None) -> None:
+        self.lac = lac_analyzer if enable_lac else None
+        if self.lac is None and enable_lac:
+            try:
+                self.lac = LACAnalyzer()
+            except ImportError:
+                # 若未安装 LAC，保留回退的纯规则模式
+                self.lac = None
+
     def parse(self, text: str) -> ParsedAddress:
         if text is None:
             text = ""
@@ -103,6 +139,7 @@ class AddressParser:
         normalized, remark_extra = self._extract_bracket_remark(normalized)
         normalized, contact_remark = self._extract_contact(normalized)
         remarks = [seg for seg in [remark_extra, contact_remark] if seg]
+        lac_tags = self._run_lac(normalized)
         province, remaining = self._extract_province(normalized)
         city, remaining = self._extract_city(remaining, province)
         district, remaining = self._extract_by_suffix(remaining, DISTRICT_SUFFIXES)
@@ -121,7 +158,7 @@ class AddressParser:
             remarks.append(detail)
         remark_text = "；".join(filter(None, remarks))
         cleaned = "".join(filter(None, [province, city, district, town, neighborhood, road, house_number, building, unit, room]))
-        return ParsedAddress(
+        parsed = ParsedAddress(
             province=province,
             city=city,
             district=district,
@@ -135,6 +172,8 @@ class AddressParser:
             remark=remark_text,
             cleaned_text=cleaned or normalized,
         )
+        self._apply_lac_assist(parsed, lac_tags)
+        return parsed
 
     def _normalize(self, text: str) -> str:
         replaced = (
@@ -209,6 +248,66 @@ class AddressParser:
         new_text = text[: match.start()] + text[match.end() :]
         return value, new_text
 
+    def _run_lac(self, text: str) -> list[tuple[str, str]]:
+        if not self.lac:
+            return []
+        try:
+            return self.lac.tag(text)
+        except Exception:
+            return []
+
+    def _apply_lac_assist(self, parsed: ParsedAddress, lac_tags: list[tuple[str, str]]) -> None:
+        if not lac_tags:
+            return
+        used: set[str] = set(filter(None, [parsed.province, parsed.city, parsed.district, parsed.town, parsed.road, parsed.neighborhood]))
+        if not parsed.town:
+            town_candidate = self._pick_with_suffix(lac_tags, TOWN_SUFFIXES, used)
+            if town_candidate:
+                parsed.town = town_candidate
+                used.add(town_candidate)
+        if not parsed.road:
+            road_candidate = self._pick_with_pattern(lac_tags, ROAD_PATTERN, used)
+            if road_candidate:
+                parsed.road = road_candidate
+                used.add(road_candidate)
+        if not parsed.neighborhood:
+            neighborhood_candidate = self._pick_with_pattern(lac_tags, NEIGHBORHOOD_PATTERN, used, prefer_longest=True)
+            if neighborhood_candidate:
+                parsed.neighborhood = neighborhood_candidate
+                used.add(neighborhood_candidate)
+
+    def _pick_with_suffix(
+        self,
+        lac_tags: Sequence[tuple[str, str]],
+        suffixes: Iterable[str],
+        used: set[str],
+    ) -> str:
+        for token, tag in lac_tags:
+            if token in used or not token:
+                continue
+            if any(token.endswith(suffix) for suffix in suffixes):
+                return token
+        return ""
+
+    def _pick_with_pattern(
+        self,
+        lac_tags: Sequence[tuple[str, str]],
+        pattern: re.Pattern[str],
+        used: set[str],
+        prefer_longest: bool = False,
+    ) -> str:
+        candidates: list[str] = []
+        for token, tag in lac_tags:
+            if token in used or not token:
+                continue
+            if pattern.search(token):
+                candidates.append(token)
+        if not candidates:
+            return ""
+        if prefer_longest:
+            candidates.sort(key=lambda x: len(x), reverse=True)
+        return candidates[0]
+
     def _extract_named(
         self,
         pattern: re.Pattern[str],
@@ -234,8 +333,8 @@ class AddressParser:
 
 
 class AddressCleaner:
-    def __init__(self, parser: AddressParser | None = None) -> None:
-        self.parser = parser or AddressParser()
+    def __init__(self, parser: AddressParser | None = None, enable_lac: bool = True) -> None:
+        self.parser = parser or AddressParser(enable_lac=enable_lac)
 
     def clean_dataframe(self, df: pd.DataFrame, column: str) -> pd.DataFrame:
         if column not in df.columns:
