@@ -100,16 +100,30 @@ B01C30J4ZG 奔马汽配城 汽车服务;汽车配件销售;汽车配件销售 10
 
 ```bash
 geo-clean -i data/raw_addresses.xlsx -c 地址 -o output/cleaned.xlsx
+# 如需关闭 LAC（默认开启以提升拆分准确度）
+# geo-clean -i data/raw_addresses.xlsx -c 地址 --no-lac
 ```
 
 - `-c/--column`：要处理的列名，默认为“地址”；
 - `-o/--output`：输出文件路径，若省略则写入与输入同目录的 `_clean` 文件。
+- 默认集成 LAC 分词/NER 提升拆分准确率，若运行环境未安装可执行 `pip install LAC`；也可用 `--no-lac` 关闭。
 
 工具会输出以下列：省份、地市、区县、街道/乡镇、道路名称、门牌号、小区/屯名称、楼栋、单元、户室、备注。例如：
 
 | 原始地址 | 省份 | 地市 | 区县 | 街道/乡镇 | 小区/屯名称 | 楼栋 | 单元 | 户室 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 黑龙江省哈尔滨市松北区松北街道北岸润和城一期6栋2单元1201（不放丰巢谢谢）【配送请拨打18445786875-5835】 | 黑龙江省 | 哈尔滨市 | 松北区 | 松北街道 | 北岸润和城一期 | 6栋 | 2单元 | 1201 | 不放丰巢谢谢；配送请拨打18445786875-5835 |
+
+## 配置校验与向量模型自检
+
+- 检查配置文件路径、向量模型可用性：
+
+```bash
+geo-validate config.yaml             # 默认会检查向量模型
+geo-validate config.yaml --no-vector # 仅校验文件路径
+```
+
+若启用向量召回（`retriever.enable_vector=true`），需安装可选依赖 `pip install .[vector]`，默认模型为 `text2vec-base-chinese`。
 
 ## 常见问题
 
